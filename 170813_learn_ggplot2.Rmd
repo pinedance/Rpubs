@@ -1,0 +1,24 @@
+---
+title: "ggplot2를 알아보자"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+      fig.align='center', fig.height=7, fig.width=7, fig.dpi=300)
+```
+
+
+
+
+
+참고자료
+----------
+
+MINHO LEE의 정리글. 한글로, 잘 정리되어 있다. 블로그 비주얼이 멋지다.
+
+* [GGPLOT2 - 01 GRAMMAR OF GRAPHICS](http://lumiamitie.github.io/r/visualization/ggplot2-01/)
+* [GGPLOT2 - 02 DRAWING GRAPHS](http://lumiamitie.github.io/r/visualization/ggplot2-02/)
+* [GGPLOT2 - 03](http://lumiamitie.github.io/r/visualization/ggplot2-03/)
+* [GGPLOT2 LABEL 설정하기](http://lumiamitie.github.io/r/visualization/ggplot2-labs/)
+* [GGPLOT2 축 레이블 포맷 바꾸기](http://lumiamitie.github.io/r/visualization/ggplot2-scale-label/)

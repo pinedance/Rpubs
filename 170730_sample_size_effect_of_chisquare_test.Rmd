@@ -1,0 +1,87 @@
+---
+title: "Sample Size Effect of Chisq.test"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+text data를 많이 다루다 보니 2X2 contigency table을 통해 chisq.test를 사용하는 일이 많다. 그런데, N수에 따라 chisq value가 커지면서 p.value의 값이 작아지는 것을 경험했다. 다시 말해 빈도의 비율은 그대로인데 2배 3배로 sample size가 증가하면 chisq value는 증가하고 p.value는 작아지게 된다. 
+
+text data 특성상 sample size는 조정하기 나름이어서 chisq.test의 이런 특성은 작업을 어렵게 만든다. 
+
+## Simulation
+
+예를 들어보자. 대략 다음과 같은 2X2 contigency table이 있다고 해보자. 
+
+
+```{r}
+a <- matrix(c(15,25,36,72), 2)
+a
+```
+
+이 값의 chisq.text 값은 다음과 같다. 
+
+```{r}
+chisq.test(a)
+```
+
+그런데, a 값을 그대로 2배로 바꾸면 결과가 달라진다. 
+
+```{r}
+chisq.test(a *2 )
+```
+
+좀더 다양하게 변화시켜보자. 
+
+```{r}
+s <- c(1:100)
+# chi.value
+chi <- sapply(s, function(x){ chisq.test(a*x)$statistic})
+# p.value
+p <- sapply(s, function(x){ chisq.test(a*x)$p.value})
+# 비교를 위해 fisher's exact test의 p.value
+fi <- sapply(s, function(x){ fisher.test(a*x)$p.value })
+```
+
+
+chi.value는 선형적으로 증가하는 모습을 보인다. 
+
+```{r}
+plot(s,chi)
+```
+
+p.value는 sample size가 증가할 수록 0에 근접하는 모습을 보였다. 
+
+
+```{r}
+plot(s, p, pch=15, cex=1, col="red")
+points(s, fi, pch=22, cex=0.5, col="blue")
+abline(0.05, 0, lty="dotted")
+```
+
+
+즉, 초기 데이터는 두 변수가 독립이라고 말하기 어렵지 않은 수준(귀무가설을 기각하기 어려운 상황)이었는데, 18배 정도로 n 수를 늘리자 독립이라는 가정 하에서는 나타나기 매우 어려운 현상이라는 결론(귀무가설 기각 가능)에 이르게 되었다. 
+
+
+참고로 chisq.test의 effect size를 측정하기 위한 cremar's V를 보면 sample size가 늘어날 수록 증가하는 것을 볼 수 있다. 
+
+```{r}
+# cremar's v
+v <- sapply(s, function(x){ sqrt( chisq.test(a*x)$statistic / sum(a*x) ) })
+# https://www.youtube.com/watch?v=sZF7fqNOe7Y
+plot(s, v)
+```
+
+
+## Summary
+
+자료를 찾다보니 일반적으로 [sample size가 커질수록 p.value는 작아진다](http://www.talkstats.com/showthread.php/18075-p-value-v-sample-size)고 한다. 
+
+곰곰히 생각해 보니 sample size가 커진다는 것은 사건이 매우 구체적이 된다는 뜻이다. p.value는 귀무가설 가정 하에서 해당 사건이 일어날 확률을 의미한다. 따라서 사건이 구체적이 될 수록 두 집단이 같거나 두 변수가 독립일 확률이 점점 작아지게 된다. 사진의 해상도를 생각해 보자. 해상도가 높아지면 다른 물체를 가리킬 가능성이 사라지게 된다. 
+
+반대로 sample size가 작아지면 p.value가 커지게 된다. 해상도가 낮으면 사진 속 인물은 철수일 가능성도 있고 동수일 가능성도 있다. 그리고 해상도가 어느 선 이상으로 낮아지면 급기야 누구라도 가능해진다. 이정도 되면 p.value를 신뢰할 수 없는 지경에 이르게 된다. 따라서 [chisq.test의 경우에는 관찰값이나 기대값이 5 이하인 경우에는 사용하지 않는다](https://goo.gl/0owHgA). 
+

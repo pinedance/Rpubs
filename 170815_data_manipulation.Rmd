@@ -1,0 +1,18 @@
+---
+title: "Data manipulation"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+      fig.align='center', fig.height=7, fig.width=7, fig.dpi=300)
+```
+
+
+
+
+
+참고자료
+----------
+
+Hadley Wickham, [Tidy Data](http://vita.had.co.nz/papers/tidy-data.pdf)

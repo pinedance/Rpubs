@@ -1,0 +1,19 @@
+---
+title: "Text mining"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+      fig.align='center', fig.height=7, fig.width=7, fig.dpi=300)
+```
+
+
+
+
+
+참고자료
+----------
+
+
+* [Text mining with R](http://tidytextmining.com/tidytext.html)

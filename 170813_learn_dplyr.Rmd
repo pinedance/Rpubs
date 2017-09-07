@@ -1,0 +1,21 @@
+---
+title: "dplyr"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+      fig.align='center', fig.height=7, fig.width=7, fig.dpi=300)
+```
+
+
+
+
+
+참고자료
+----------
+
+
+[dplyr로 데이터 집계와 분석](https://statkclee.github.io/R-ecology-lesson/kr/04-dplyr.html)
+
+[Data Wrangling with dplyr and tidyr Cheat Sheet ](https://www.rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf)

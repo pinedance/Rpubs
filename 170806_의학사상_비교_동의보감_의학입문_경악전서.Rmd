@@ -1,0 +1,419 @@
+---
+title: "동의보감 의학입문 경악전서 비교 summary"
+output: "html_document"
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+    echo = FALSE, message=FALSE, warning=FALSE,
+    fig.align='center', fig.height=8, fig.width=8, fig.dpi=300, 
+    fig.path="170806_figure/",
+    cache=TRUE
+)
+```
+
+
+
+0. 데이터 준비
+---------------
+
+
+```{r}
+# keyword_freq
+YH <- read.table("170806_data/YHYM_keyword_freq.tsv", header=TRUE, quote=NULL, sep="\t")
+DY <- read.table("170806_data/DYBG_keyword_freq.tsv", header=TRUE, quote=NULL, sep="\t")
+GA <- read.table("170806_data/GAZS_keyword_freq.tsv", header=TRUE, quote=NULL, sep="\t")
+```
+
+관찰빈도 (YH:의학입문, DY:동의보감, GA:경악전서)
+
+```{r}
+# rowData
+rawData <- YH[1]
+rawData$YH.freq <- YH$freq
+rawData$DY.freq <- DY$freq
+rawData$GA.freq <- GA$freq
+tmp1 <- t( rawData[,2:4] )
+colnames(tmp1) <- rawData$keyword
+rownames(tmp1) <- c("의학입문", "동의보감", "경악전서")
+tmp1 
+```
+
+
+상대빈도1 (1천자 당 출현 빈도) -> 빈도 자체 비교 편리
+
+
+```{r}
+frqData <- YH[1]
+frqData$YH.rlfrq <-  YH$freq / YH$docsize * 1000 
+frqData$DY.rlfrq <- DY$freq / DY$docsize * 1000 
+frqData$GA.rlfrq <- GA$freq / GA$docsize * 1000 
+rownames(frqData) <- frqData$keyword
+frqData <- frqData[,2:4]
+tmp3 <- t( frqData )
+rownames( tmp3 ) <- c("의학입문", "동의보감", "경악전서")
+round(tmp3, 2)
+```
+
+
+상대빈도2 : 문서들 평균 길이 -> 카이제곱
+
+
+```{r}
+frqData2 <- YH[1]
+m <- mean( c(YH$docsize, DY$docsize, GA$docsize))
+frqData2$YH.rlfrq <-  YH$freq / YH$docsize * m
+frqData2$DY.rlfrq <- DY$freq / DY$docsize * m
+frqData2$GA.rlfrq <- GA$freq / GA$docsize * m
+frqData2 <- frqData2[,2:4]
+tmp2 <- t( frqData2 )
+colnames(tmp2) <- colnames(tmp3)
+rownames(tmp2) <- c("의학입문", "동의보감", "경악전서")
+round(tmp2, 2)
+```
+
+
+단순 빈도 비교
+---------------
+
+
+### Overview
+
+#### Scatter plot
+
+기대빈도와 관찰빈도 사이의 관계를 살펴보자. 이를 위해 Pearson's Chi-squared test를 사용했다. 
+
+※ 상대빈도2를 사용했다. chi-squared 값은 데이터 크기에 따라 변한다. 상대빈도1을 사용하면 너무 작은 값 때문에 결과가 잘 나오지 않는다. 또 관찰빈도를 그대로 사용하면 텍스트 크기가 다르기 때문에 문제가 된다. 따라서 실제 관찰빈도와 유사한 값으로서 서적 사이에 텍스트 크기를 상쇄한 상대빈도2를 썼다.)
+
+먼저 의학입문과 비교한 동의보감의 핵심어 분포이다. 
+
+
+
+```{r}
+attach( rawData )
+lm.YH.DY <- lm( DY.freq~YH.freq )
+lm.GA.DY <- lm( DY.freq~GA.freq )
+
+plot( YH.freq, DY.freq,  type ="n", xlab="의학입문(관찰빈도)", ylab="동의보감(관찰빈도)", main="의학입문과 동의보감의 빈도 비교", xlim=c(0,12500), ylim=c(0,12500) )
+text( YH.freq, DY.freq , keyword, cex=0.8, pos=4 )
+abline( lm.YH.DY, lty="dotted", col="gray" )
+
+plot( GA.freq, DY.freq,  type ="n", xlab="경악전서(관찰빈도)", ylab="동의보감(관찰빈도)", main="경악전서와 동의보감의 빈도 비교", xlim=c(0,12500), ylim=c(0,12500)  )
+text( GA.freq, DY.freq , keyword, cex=0.8, pos=4 )
+abline( lm.GA.DY, lty="dotted", col="gray" )
+detach( rawData )
+```
+
+의학입문과 동의보감의 상관계수(Correlation coefficient)는 `r round( cor(rawData$YH.freq, rawData$DY.freq), 2 )`, 경악전서와 동의보감의 상관계수는 `r round( cor(rawData$GA.freq, rawData$DY.freq), 2 )`로 나타났다. 
+
+
+#### standardized residual
+
+
+```{r}
+# Pearson's Chi-squared test
+## DY-YH
+chi.DY.YH <- chisq.test(frqData2[,c(2,1)])
+
+# standardized residual
+sr.DY.YH <- cbind(chi.DY.YH$observed, chi.DY.YH$expected, chi.DY.YH$observed - chi.DY.YH$expected, chi.DY.YH$residuals)
+
+colnames(sr.DY.YH) <- c("동의보감obs", "의학입문obs", "동의보감exp", "의학입문exp", "동의보감res", "의학입문res", "동의보감sr", "의학입문sr")
+rownames(sr.DY.YH) <- colnames(tmp3)
+round(sr.DY.YH, 2)
+```
+
+
+```{r}
+# residuals	: the Pearson residuals, (observed - expected) / sqrt(expected).
+## DY with YH
+x1 <- sqrt(chi.DY.YH$expected)[,1]
+y1 <- chi.DY.YH$residuals[,1]
+
+plot(x1,y1, xlab="Square root of expected value", ylab="standardized residual", 
+      main="의학입문 대비 동의보감의 핵심어 빈도 특징",
+      col="black",xlim=c(10,100), ylim=c(-15, 25) )
+abline(0, 0, lty=3)
+text(x1, y1, labels=rawData[,1], col="black", pos=3)
+```
+
+
+다음으로 경악전서와 비교한 동의보감의 핵심어 분포이다. 
+
+
+
+
+```{r}
+## DY-GA
+chi.DY.GA <- chisq.test(frqData2[,c(2,3)])
+
+# standardized residual
+sr.DY.GA <- cbind(chi.DY.GA$observed, chi.DY.GA$expected, chi.DY.GA$observed-chi.DY.GA$expected, chi.DY.GA$residuals)
+
+colnames(sr.DY.GA) <- c("동의보감obs", "경악전서obs", "동의보감exp", "경악전서exp", "동의보감res", "경악전서res", "동의보감sr", "경악전서sr")
+rownames(sr.DY.GA) <- colnames(tmp3)
+
+sr.DY.GA
+```
+
+
+```{r}
+## DY with GA
+x2 <- sqrt(chi.DY.GA$expected)[,1]
+y2 <- chi.DY.GA$residuals[,1]
+
+plot(x2,y2, xlab="Square root of expected value", ylab="standardized residual", 
+      main="경악전서 대비 동의보감의 핵심어 빈도 특징", 
+      col="black", xlim=c(10,100), ylim=c(-15, 25) )
+abline(0, 0, lty=3)
+text(x2, y2, labels=rawData[,1], col="black", pos=3)
+```
+
+
+
+### 주제별 비교 
+
+
+전체 핵심어 상대빈도 
+
+
+```{r}
+freq.mx <- t(as.matrix(frqData))
+rownames( freq.mx ) <- c("의학입문", "동의보감", "경악전서")
+addmargins( freq.mx )
+
+tmp.col <- c("black", "gray")
+
+# radarchart
+library(fmsb)
+colors_border=c( rgb(0.8,0.2,0.5,0.9) , rgb(0.7,0.5,0.1,0.9), rgb(0.2,0.5,0.5,0.9) )
+colors_in=c( rgb(0.8,0.2,0.5,0.4) , rgb(0.7,0.5,0.1,0.4), rgb(0.2,0.5,0.5,0.4) )
+
+drawRadarChart <- function( t.df, params ){
+  
+  colsize <- ncol( t.df)
+  df <- as.data.frame( rbind( rep( params[2], colsize ) , rep( params[1], colsize ), t.df ) )
+  radarchart( df, axistype=1 , 
+              #custom polygon
+              pcol=colors_border , pfcol=colors_in , plwd=4 , plty=1,
+              #custom the grid
+              cglcol="grey", cglty=3, cglwd=0.8, 
+              axislabcol="grey", calcex=0.8, #caxislabels=seq(0, 100, 5),
+              #custom labels
+              vlcex=1 
+  )
+  legend(x=1.5, y=0, 
+         legend=rownames( df[-c(1,2),]),
+         bty = "n", pch=20 , col=colors_in , 
+         text.col = "black", cex=1, pt.cex=3)
+}
+
+
+freq.total <- data.frame(
+  정기신= rowSums(freq.mx[,6:11], na.rm = FALSE, dims = 1) / ncol(freq.mx[,6:11]),
+  오장=rowSums(freq.mx[,1:5], na.rm = FALSE, dims = 1) / ncol(freq.mx[,1:5]),
+  육기=rowSums(freq.mx[,c(16:17, 20:24)], na.rm = FALSE, dims = 1) / ncol(freq.mx[,c(16:17, 20:24)]),
+  팔강=rowSums(freq.mx[,c(12:19,24)], na.rm = FALSE, dims = 1) / ncol(freq.mx[,c(12:19,24)])
+)
+
+
+frqTotal <- rowSums( freq.mx) / 1000 * 100
+```
+
+
+전체 글자수 대비 핵심어 빈도 합계 퍼센테이지 
+
+```{r}
+round(frqTotal, 2)
+barplot( frqTotal,
+         horiz=TRUE, border=NA, xlim=c(0, 10), las=1, main="Total Frequencies of Keywords (%)")
+
+```
+
+
+전체 분포
+
+노란색 : 동의보감, 빨간색 : 의학입문, 초록색 : 경악전서
+
+```{r}
+drawRadarChart( as.matrix(freq.total), c(1,5) )
+```
+
+
+오장
+
+
+```{r}
+drawRadarChart( freq.mx[,1:5], c(1,5) )
+```
+
+
+육기
+
+```{r}
+drawRadarChart( freq.mx[,c(20, 16, 21:24, 17)], c(1,8) )
+```
+
+정신기혈담울
+
+
+```{r}
+drawRadarChart( freq.mx[,c(6, 8, 7, 9:11)], c(1,13) )
+```
+
+
+팔강
+
+```{r}
+freq.eight <- data.frame(
+  음양= rowSums (freq.mx[,12:13], na.rm = FALSE, dims = 1) / 2,
+  표리=rowSums(freq.mx[,14:15], na.rm = FALSE, dims = 1) / 2 ,
+  "한열화"=rowSums (freq.mx[,c(16:17, 24)], na.rm = FALSE, dims = 1) / 3,
+  허실=rowSums (freq.mx[,c(18:19)], na.rm = FALSE, dims = 1) / 2
+)
+
+drawRadarChart( as.matrix(freq.eight), c(1,8) )
+
+drawRadarChart( freq.mx[,c(12:17,24, 18:19)], c(1,10) )
+```
+
+
+
+의서 상호 비교
+---------------
+
+
+### homogeneity
+
+각 의서들을 100조각으로 나누어 임의로 재배열 하여 2개의 sub text를 만든 뒤, 이 둘 사이의 CBDF(chi-squared 값을 자유도로 나눈 것)를 구한다. 이것을 반복하여 값을 만든다.
+
+```{r}
+# keyword_freq for homogeneity
+raw.YHs <- read.table("170806_data/YHYM_keyword_freq_from_sample.tsv", header=TRUE, quote=NULL, sep="\t")
+raw.DYs <- read.table("170806_data/DYBG_keyword_freq_from_sample.tsv", header=TRUE, quote=NULL, sep="\t")
+raw.GAs <- read.table("170806_data/GAZS_keyword_freq_from_sample.tsv", header=TRUE, quote=NULL, sep="\t")
+
+YHs <- raw.YHs / ( YH$docsize / 100 ) * ( m / 100 )
+DYs <- raw.DYs / ( DY$docsize / 100 ) * ( m / 100 )
+GAs <- raw.GAs / ( GA$docsize / 100 ) * ( m / 100 )
+  
+iteration <- 10000
+#iteration <- 100
+
+# CBDF (Chi by Degrees of Freedom)
+
+get_xdf <- function( data ){
+  
+  chi <- chisq.test( data )
+  
+  # X-squared Devided by degree of Freedom
+  xdf <- round( chi$statistic / chi$parameter, 2)
+  names(xdf) <- NULL
+  xdf
+  
+}
+
+split_in_half <- function( target ){
+  
+  size <- nrow( target )
+  
+  idxs <- seq(1:size)
+  
+  idxs.sample1 <- sample( idxs, round( size/2 ), replace=FALSE)
+  idxs.sample2 <- setdiff( idxs, idxs.sample1 )
+  
+  sample1 <- target[ idxs.sample1, c( 3:ncol(target) ) ]
+  sample2 <- target[ idxs.sample2, c( 3:ncol(target) ) ]
+  
+  list( sample1=sample1, sample2=sample2 )
+  
+}
+
+get_xdf_with_2samples <- function( target ){
+  
+  tmp.list <- split_in_half( target )
+  
+  tmp.data <- data.frame( sample1=apply(tmp.list$sample1, 2, sum), sample2=apply(tmp.list$sample2, 2, sum) )
+  
+  get_xdf( tmp.data )
+}
+
+
+YH.xdfs <- sapply( seq(1:iteration), function(x){ get_xdf_with_2samples( YHs ) } )
+DY.xdfs <- sapply( seq(1:iteration), function(x){ get_xdf_with_2samples( DYs ) } )
+GA.xdfs <- sapply( seq(1:iteration), function(x){ get_xdf_with_2samples( GAs ) } )
+```
+
+
+
+```{r eval=FALSE}
+hist(YH.xdfs, prob=TRUE, col="grey")
+lines(density( YH.xdfs ), col="blue", lwd=2) # add a density estimate with defaults
+lines(density( YH.xdfs, adjust=2), lty="dotted", col="darkgreen", lwd=2) 
+
+hist(DY.xdfs, prob=TRUE, col="grey")
+lines(density( DY.xdfs ), col="blue", lwd=2) # add a density estimate with defaults
+lines(density( DY.xdfs, adjust=2), lty="dotted", col="darkgreen", lwd=2) 
+
+hist(GA.xdfs, prob=TRUE, col="grey")
+lines(density( GA.xdfs ), col="blue", lwd=2) # add a density estimate with defaults
+lines(density( GA.xdfs, adjust=2), lty="dotted", col="darkgreen", lwd=2) 
+```
+
+
+
+```{r}
+all.xdfs <- data.frame(YH=YH.xdfs, DY=DY.xdfs, GA=GA.xdfs)
+
+plot( density( DY.xdfs ), col=colors_border[2], lwd=2, ylim=c(0,0.1), main="Text Homogeneity") 
+lines( density( YH.xdfs ), lty="dotted", col=colors_border[1], lwd=2)
+lines( density( GA.xdfs ), lty="dashed", col=colors_border[3], lwd=2)
+# text(x=c(10, 18, 26), y=c(0.085, 0.068, 0.053), c("의학입문", "경악전서", "동의보감") )
+legend("topright", inset=.02, legend=c("의학입문", "경악전서", "동의보감"),
+       col=colors_border[c(1,3,2)], lty=c(3,2,1), cex=1.2, box.lty=0)
+# boxplot(all.xdfs)
+```
+
+평균과 표준편차
+
+```{r}
+round( apply( all.xdfs, 2, mean ), 2)
+round( apply( all.xdfs, 2, sd ), 2)
+```
+
+
+
+### 의학 사상 유사성 비교
+
+의서들 간에 CBDF 값을 구하여 MDS으로 시각화 한다. 
+
+```{r}
+## 거리계산 
+
+get_xdf <- function( x, y ){
+  
+  chi <- chisq.test( data.frame(x=x, y=y) )
+  
+  # X-squared Devided by degree of Freedom
+  xdf <- round( chi$statistic / chi$parameter, 2)
+  names(xdf) <- NULL
+  xdf
+  
+}
+
+library(proxy)
+dists <- dist( t(frqData2), get_xdf )
+dists
+```
+
+
+```{r}
+## MDS
+mds=cmdscale( dists )
+plot(mds, xlim=c(-100,100), ylim=c(-100,100), xlab="MDS.x", ylab="MDS.y", main="의서 간 상대 거리 (MDS)")
+text(mds[,1], mds[,2], c("의학입문", "동의보감", "경악전서"), pos=3)
+```
+
+
+

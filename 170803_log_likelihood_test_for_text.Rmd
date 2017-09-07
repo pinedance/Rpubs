@@ -1,0 +1,283 @@
+---
+title: "Log Likelihood Test For Text"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+      fig.align='center', fig.height=7, fig.width=7, fig.dpi=300)
+```
+
+
+## Background
+
+단어 사이에 association을 측정하는 방법은 매우 여러가지이다. Pecina는 선행 연구들에서 제안된 방법 82가지를 제시하기도 하였다. [(Pecina, 2010)](https://link.springer.com/article/10.1007/s10579-009-9101-4)
+
+
+## Association measures
+
+현재 상태에서 어떤 방법을 사용할 것인가에 대해 답을 가지고 있지는 않다. 하지만 몇가지 기준은 생각하고 있다. 
+
+첫째, 통계적 가정이 필요로 하지 않는 방법일 것. 보통 통계적인 방법들은 정규성이라든지 등분산이라든지 사용되는 확률모델에 따라 전제가 요구된다. 하지만 빈도를 기반으로 한 텍스트 데이터는 이런 전제를 만족시키기 어렵다. 현재 collocation 분야에서 사용되는 방법 가운데 z-score와 같이 통계학에서 출발한 방법들은 rank를 비교하기 위한 수단으로만 사용되고 그 값에 통계적인 의미를 부여하지는 않는 방법으로 이 문제를 피하고 있다. 하지만 전제가 필요 없는 방법이 더 좋을 것이다. 
+
+둘째, 계산 방법이 비교적 단순하고 경제적일 것. bigram을 기준으로 2x2 contigency table에서 가장 정확한 방법은 Fisher's exact test라고 할 수 있다. 하지만 계산 방법이 복잡하고 부하가 많은 펙토리얼 연산을 수행해야만 한다. 따라서 대량에 데이터에 적용하기는 어렵다. 보다 경제적인 계산 방법이 필요하다. 
+
+셋째, 계산 결과가 직관적으로 어떤 의미를 가지는지 이해 될 것. 도출된 숫자가 단순히 상호 비교를 위한 rank라고 한다면 의미가 반감된다. 그 수치가 어떤 의미를 가지는지 직관적으로 이해할 수 있다면 더 좋을 것다. 
+
+넷째, 전체 텍스트 크기에 무관한 방법일 것. 즉 관찰빈도를 정규화 하지 않아도 되는 방법이면 더 좋겠다. [chi-squared value의 경우 sample size의 크기에 따라 결과값이 크게 영향을 받는다](http://rpubs.com/pinedance/296129). 따라서 동일한 sample에서 계산된 rank 값은 서로 비교 가능하지만, 서로 다른 sample에서 나온 값은 그대로 비교할 수 없다. 관찰빈도를 그대로 쓸 수 없고 sample size를 서로 같게 맞추어 상대빈도를 구하는 등 정규화가 필요하다. 이러한 정규화는 텍스트 데이터를 다룰 때 자주 발생하는 문제이다. ( cosine similarity가 많이 쓰이는 이유도 이런 정규화 문제 때문이다. )
+
+
+## Log likelihood ratio
+
+이런 기준을 가지고 고려하고 있는 방법 가운데 `log likelihood ratio`이 있다. 이 방법에 대해서는 사실 깊이 알지는 못한다. 다만 [Dunning이 제안](http://dl.acm.org/citation.cfm?id=972454)한 후로 Computational Linguistics 분야에서 종종 언급되고 있는 방법이다. 
+
+마침 그의 논문을 보다가 올려 놓은 데이터가 있어 궁금한 점이 있어 몇가지 테스트를 시도해 본다. 
+
+
+## Simulation using sample data
+
+우선 논문에 실려 있는 데이터를 읽어들인다. 
+
+
+```{r}
+bigram <- read.table("170803_log_likelihood_test_for_text_data.tsv", header=TRUE, sep="\t", quote=NULL, row.names=NULL)
+
+# 논문에 이미 계산된 Log likelihood ratio 값 제거
+bigram <- bigram[,c(2:5)]   
+
+# 관찰빈도
+head(bigram)
+```
+
+sample size(n)이라든지, 기대빈도 등 부가정보들을 해당 데이터로부터 만든다. 
+
+
+```{r warning=FALSE}
+matrix_with_smooth <- function( vec ){
+  
+  matrix(vec, 2) + 0.25  # + 0.25 : smoothing
+  
+}
+
+n <- sum( bigram[1,] )
+
+e.bigram <- apply( bigram, 1, function(vec){ as.vector( chisq.test( matrix_with_smooth(vec) )$expected ) })
+
+e.bigram <- as.data.frame( t(e.bigram) )
+
+colnames(e.bigram) <- c("e11", "e10", "e01", "e00")
+
+# 기대빈도
+head(e.bigram)
+```
+
+
+log likelihood ratio를 구하는 공식을 함수로 만든다. 아울러 계산을 좀 더 단순화한 simple log likelihood 공식도 함수로 만들었다. 참고로 이 공식은 [Evert의 연구](https://goo.gl/QJTLxj)에서 보았다. 
+
+
+
+```{r}
+loglikelihood <- function( vec ){
+  
+  o <- matrix_with_smooth(vec)
+  e <- chisq.test(o)$expected
+  ll <- -2 * sum( o * log( e / o) )
+  round(ll, 2)
+
+}
+
+
+loglikelihood_simple <- function( vec ){
+  
+  o <- matrix_with_smooth(vec)
+  e <- chisq.test(o)$expected
+  ll.s <-  2 * ( o[1,1] * log( o[1,1] / e[1,1]) - o[1,1] + e[1,1] )  
+  round(ll.s, 2)
+  
+}
+
+
+fisher.exact <- function( vec ){
+  
+  o <- matrix_with_smooth(vec)
+  fisher.test(o)$p.value
+  
+}
+
+
+chi_squared <- function( vec ){
+  
+  o <- matrix_with_smooth(vec)
+  chisq.test(o)$statistic
+
+}
+
+chi_squared_test <- function( vec ){
+  
+  o <- matrix_with_smooth(vec)
+  chisq.test(o)$p.value
+
+}
+
+phi_coefficient <- function( vec ){
+  
+  o <- matrix_with_smooth(vec)
+  rs <- rowSums(o)
+  cs <- colSums(o)
+  ( ( o[1,1] * o[2,2] ) - ( o[1,2] * o[2,1]) ) / sqrt( rs[1] * rs[2] * cs[1] * cs[2] )
+  
+}
+```
+
+
+공식을 사용해 연산하였다. 
+
+
+```{r warning=FALSE}
+ll <- apply(bigram, 1, loglikelihood)
+ll.sim <- apply(bigram, 1, loglikelihood_simple)
+```
+
+
+
+## Method 탐색
+
+
+### log likelihood ratio vs simple log likelihood ratio
+
+log likelihood ratio와 그것을 단순화한 `간단공식` 사이에는 어떤 관계가 있을까. 
+
+
+```{r}
+plot(ll, ll.sim, xlim=c(0,280), ylim=c(0,280), type="n")
+abline( lm(ll.sim~ll), col="red", lty="dotted" )
+text( ll, ll.sim, labels=rownames(bigram))
+```
+
+상당히 높은 선형 관계를 보였다. 간단공식으로 대체할 수 있어 보인다. 다만 기울기가 `r round(lm(ll.sim~ll)$coefficients[2], 2)`로 1보다 작다. 따라서 결과 값이 상대적으로 작게 측정된다. 
+
+
+
+### p value ( log likelihood ratio vs fisher exact test, chisq.test )
+
+log likelihood ratio의 값은 chi 분포를 따르는 특성이 있다. 이를 통해 p.value를 도출한 다음 fisher와 비교해 보았다. 
+
+
+```{r warning=FALSE}
+fisher.p <- apply(bigram, 1, fisher.exact)
+chisq.p <- apply(bigram, 1, chi_squared_test)
+ll.p <- sapply( ll, function(x){ pchisq(x, df=1, lower.tail=FALSE) })
+
+plot( data.frame(ll.p=ll.p, fisher.p=fisher.p, chisq.p=chisq.p ))
+```
+
+차이가 컸다. 
+
+역시 chisq.test p.value는 신뢰하기 어려웠다. 
+
+
+
+### association strength ( log likelihood ratio vs other method )
+
+흥미롭게도 2개의 그룹으로 나누어졌다. 첫째 그룹은 ll, t.score, we.eudis으로 특히 t.score와 we.eduis는 상당히 유사한 경향을 보였다. 둘째 그룹은 chi.squared, z.score, mu.info으로 모두 유사한 경향을 보였다. 
+
+
+```{r warning=FALSE}
+# Chi Squared
+chi.squared <- apply(bigram, 1, chi_squared)
+
+# weighted Euclidean distance
+we.eudis <- apply( (bigram - e.bigram)^2 / (bigram + e.bigram), 1, function(v){ sqrt( sum(v) ) })
+
+# mutual information
+mu.info <- bigram[,1] / e.bigram[,1]
+
+# t-score
+t.score <- ( bigram$o11 - e.bigram$e11 ) / sqrt( bigram$o11 )
+
+# z-score
+z.score <- ( bigram$o11 - e.bigram$e11 ) / sqrt( e.bigram$e11 )
+
+# phi coefficient
+phi <- apply(bigram, 1, phi_coefficient)
+
+associations <- data.frame( 
+  ll=ll, we.eudis=we.eudis, t.score=t.score, 
+  observed=bigram$o11, expected=e.bigram$e11,
+  phi=phi, z.score=z.score, chi.squared=chi.squared, mu.info=mu.info)
+
+plot( associations )
+```
+
+
+```{r}
+library(corrplot)
+cor_coeff <- cor( associations )
+corrplot.mixed( cor_coeff, order ="hclust")
+```
+
+phi는 z.score와 사실상 같은 값이고, chi-squared와도 매우 유사한 값으로 나타났다. [phi는 이론적으로 Pearson correlation coefficient를 two binary variables에 적용한 값이다](http://math.tutorvista.com/statistics/phi-coefficient.html?view=simple). 
+
+자유도 1인 2x2 table에서 chi-squared를 sample size로 나눈 값이라고 한다. 위 결과에서 약간 차이가 나는 부분은 smoothing을 했기 때문인지 모르겠다. 
+
+z.score - phi - correlation coefficient가 모두 같은 의미라는 것인데, 여기에 대해서는 더 생각해 봐야 겠다. 
+
+더 읽어보기 
+
+* [Phi (φ) Correlation](https://www.slideshare.net/xianglainerut/phi-correlation)
+
+
+```{r}
+# Group A
+plot( associations[,c(1:5)] )
+```
+
+
+```{r}
+# Group B
+plot( associations[,c(4:9)] )
+```
+
+
+
+## data 탐색
+
+ll과 기대빈도는 거의 상관성이 없게 나온 반면, 관찰빈도와는 어느정도 상관성이 나타났다. 
+
+
+
+```{r}
+plot( data.frame( observed=bigram$o11, expected=e.bigram$e11, ll=ll ) )
+```
+
+
+
+## Conclusion
+
+
+도출 배경과 연산 방법이 다르지만 방법들 사이에 유사한 결과를 보이는 그룹이 있었다. ll, t.score, we.eudis 그릅과 phi, chi.squared, z.score, mu.info 그룹이다. 개인적으로 we.eudis를 상당히 신뢰하고 있 었기 때문에 전자의 방법들도 신뢰할 수 있을 것 같다. 
+
+mu.info는 관찰빈도가 작은 경우 지나치게 높게 평가되는 경향이 있다. 따라서 후자의 방법들은 모두 이러한 문제를 어느정도 가지고 있을 것 같다. 
+
+phi와 z.score는 완전히 같은 경향을 보였다. 하지만 phi가 -1에서 1까지의 경계를 가지고 있으므로 z.score보다 phi를 쓰는 편이 더 좋을 것 같다. 
+
+흥미롭게도 t.score와 z.score는 계산이 한 끝 차이인데, 상당히 다른 경향을 보였다. 
+
+이 가운데 몇가지를 선택해야 한다면 관찰빈도와 관련이 많은 것에서 없는 것 순으로 
+
+* t.score
+* ll
+* phi (~ z.score )
+* mu.info (~ lift of association rule, df-idf)
+
+이렇게 4가지를 선택 하고 싶다. 
+
+참고로 [A collection of English corpora](http://corpus.leeds.ac.uk/protected/query.html)에서는 mu.info, t.score, ll, Dice(여기서 다루지 않았다.) 이렇게 4가지 방법을 지원하고 있고, [웹 기반 코퍼스 분석 도구](http://corpus.korea.ac.kr/)에서는 t.score 1가지 방법을 지원하고 있다. 
+
+
+***
+
+의견은 [이곳](https://github.com/pinedance/pinedance.github.io/issues)으로 
+
+
+
